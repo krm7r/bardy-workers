@@ -13,11 +13,11 @@ const CACHE_TTL_SECONDS = 300;
 const CACHE_S_MAXAGE_SECONDS = 300;
 const PROVIDER_TIMEOUT_MS = 15000; // default for plain search providers
 // Per-route limits: Firecrawl-backed routes (web, images) are slower than YouTube / Sheets / Wikipedia.
-const ROUTE_TIMEOUT_MS = { web: 20000, images: 25000, videos: 12000, news: 15000, info: 15000 };
+const ROUTE_TIMEOUT_MS = { web: 20000, images: 25000, videos: 12000, news: 15000, info: 15000, events: 12000 };
 const ANSWERS_TIMEOUT_MS = 30000; // AI answers may run search tools first
 const MAX_ANSWER_QUERY_LENGTH = 1000;
 // حدود الاستعلام لكل نوع. الإجابات لا تُقيَّد عمليًا (حتى 1000 حرف).
-const ROUTE_QUERY_LIMITS = { web: 350, images: 350, videos: 200 };
+const ROUTE_QUERY_LIMITS = { web: 350, images: 350, videos: 200, events: 200 };
 const FAILURE_CACHE_SECONDS = 20; // short negative cache: avoids hammering a failing provider
 const MAX_ANSWER_SOURCES = 6;
 
@@ -28,6 +28,7 @@ const PROVIDERS = {
   images: { type: "images", urlSecret: "IMAGES_API_URL", keySecret: "IMAGES_API_KEY" },
   videos: { type: "videos", urlSecret: "VIDEOS_API_URL", keySecret: "VIDEOS_API_KEY" },
   news: { type: "news", urlSecret: "NEWS_API_URL", keySecret: "NEWS_API_KEY" },
+  events: { type: "events", urlSecret: "EVENTS_API_URL", keySecret: "EVENTS_API_KEY" },
 };
 
 function responseHeaders(request, extra = {}) {
@@ -170,9 +171,9 @@ function buildProviderUrl(rawUrl, query, page, type, filters = {}) {
   const url = new URL(rawUrl);
   // Some source Workers expose health/help at the root and search under a typed API path.
   // Keep existing full URLs untouched, but route root URLs to their real search endpoints.
-  const rootPaths = { videos: '/api/search', news: '/api/news' };
+  const rootPaths = { videos: '/api/search', news: '/api/news', events: '/events' };
   if ((url.pathname === '/' || url.pathname === '') && rootPaths[type]) url.pathname = rootPaths[type];
-  url.searchParams.set("q", query);
+  if (query) url.searchParams.set("q", query);
   url.searchParams.set("page", String(page));
   if (filters.category) url.searchParams.set("category", filters.category);
   if (filters.source) url.searchParams.set("source", filters.source);
@@ -262,6 +263,23 @@ async function callProvider(request, env, route, query, page, filters = {}) {
   try { url = buildProviderUrl(apiUrl, query, page, provider.type, filters); } catch { return emptyResult(provider.type, query, page, false, `Invalid URL in secret: ${provider.urlSecret}`); }
   try {
     const payload = await fetchJson(url, env[provider.keySecret] || "", ROUTE_TIMEOUT_MS[route] || PROVIDER_TIMEOUT_MS);
+    if (provider.type === "events") {
+      const upcoming = Array.isArray(payload?.upcoming) ? payload.upcoming : [];
+      const past = Array.isArray(payload?.past) ? payload.past : [];
+      const mapEvent = (item, status) => ({
+        type: "event",
+        title: cleanText(item?.["العنوان"] || item?.title || "مناسبة بدون عنوان"),
+        description: cleanText(item?.["الوصف"] || item?.description),
+        date: cleanText(item?.["التاريخ"] || item?.date),
+        category: cleanText(item?.["النوع"] || item?.type),
+        calendar: cleanText(item?.["التقويم"] || item?.calendar),
+        status,
+        url: "",
+        source: "عامل المناسبات المصري",
+      });
+      const items = [...upcoming.map((item) => mapEvent(item, "upcoming")), ...past.map((item) => mapEvent(item, "past"))];
+      return { success: true, type: "events", query: "", page: 1, page_size: items.length, count: items.length, has_more: false, items, upcoming: upcoming.map((item) => mapEvent(item, "upcoming")), past: past.map((item) => mapEvent(item, "past")), counts: payload?.counts || { upcoming: upcoming.length, past: past.length, total: items.length }, time_zone: payload?.time_zone || "Africa/Cairo", now: payload?.now || null };
+    }
     const rawItems = provider.type === "images" && Array.isArray(payload?.groups) ? payload.groups.flatMap((group) => (group.items || []).map((item) => ({ ...item, source: group.source_name || group.source || item.source }))) : extractItems(payload);
     const normalizedItems = rawItems.map((item) => provider.type === "info" ? unifiedInfoItem(item) : provider.type === "images" ? imageItem(item) : genericItem(item, provider.type));
     const allItems = dedupeItems(normalizedItems);
@@ -333,7 +351,7 @@ export default {
       return json(request, { success: false, code: "query_too_long", max_length: maxLength, error: `كلمة البحث طويلة، اختصرها إلى ${maxLength} حرفًا أو أقل` }, 400);
     }
     // الأخبار تُرجع الأحدث تلقائيًا عند عدم وجود q؛ باقي المسارات تحتاج إلى بحث.
-    if (!query && route !== "news") return json(request, emptyResult(PROVIDERS[route].type, "", page));
+    if (!query && !["news", "events"].includes(route)) return json(request, emptyResult(PROVIDERS[route].type, "", page));
     const filters = { category: cleanText(url.searchParams.get("category")), source: cleanText(url.searchParams.get("source")) };
     return cachedProvider(request, env, route, query, page, ctx, filters);
   },
