@@ -161,7 +161,6 @@ function json(data, status = 200, headers = {}) {
     status,
     headers: {
       'content-type': 'application/json; charset=utf-8',
-      'access-control-allow-origin': '*',
       ...headers,
     },
   });
@@ -264,8 +263,29 @@ async function saveResults(env, query, results) {
   if (statements.length) await env.WEB_DB.batch(statements);
 }
 
+
+// ───────── حماية العامل: خاص بالموقع فقط ─────────
+// العامل لا يرد على أي طلب بدون المفتاح السري API_KEY (يرجع 404 عادي كأنه غير موجود)،
+// ولا يرسل أي ترويسة CORS، فلا يمكن استدعاؤه من المتصفح ولا من موقع آخر.
+function safeEqual(a, b) {
+  a = String(a); b = String(b);
+  let diff = a.length ^ b.length;
+  for (let i = 0; i < Math.max(a.length, b.length); i++) diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
+  return diff === 0;
+}
+function isAuthorized(request, env) {
+  const secret = String(env.API_KEY || "");
+  if (!secret) return false; // لو المفتاح غير مضبوط يُقفل العامل بدل ما يفتح للجميع
+  const bearer = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
+  return safeEqual(request.headers.get("X-API-Key") || bearer || "", secret);
+}
+function notFound() {
+  return new Response("Not found", { status: 404, headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
+}
+
 export default {
   async fetch(request, env, ctx) {
+    if (!isAuthorized(request, env)) return notFound();
     try {
       const url = new URL(request.url);
       const query = url.searchParams.get('q')?.trim();

@@ -1,0 +1,10 @@
+# للعرض والتوثيق فقط — النشر والتعديل يتمّان من لوحة Cloudflare.
+# لا توجد هنا أي أسرار؛ المفاتيح محفوظة كـ Secrets داخل Cloudflare.
+name = "bardy-images"
+main = "images.js"
+compatibility_date = "2026-01-01"
+
+
+# Secrets المطلوبة (تُضاف من Settings ← Variables and Secrets):
+#   - API_KEY
+#   - FIRECRAWL_API_KEY_1 … FIRECRAWL_API_KEY_5

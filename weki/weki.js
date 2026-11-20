@@ -16,7 +16,6 @@ const USER_AGENT = "Arabic-Wikipedia-Wikidata-Worker/2.0";
 
 function corsHeaders() {
   return {
-    "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, X-API-Key",
     "X-Content-Type-Options": "nosniff",
@@ -271,8 +270,29 @@ async function handleSearch(url) {
   return json({ success: true, type: "info", query, fetchedAt: new Date().toISOString(), page, page_size: items.length, count: items.length, has_more: hasMore, items, ...(warnings.length ? { warnings } : {}) }, 200, `public, max-age=${CACHE_TTL_SECONDS}, s-maxage=${CACHE_S_MAXAGE_SECONDS}`);
 }
 
+
+// ───────── حماية العامل: خاص بالموقع فقط ─────────
+// العامل لا يرد على أي طلب بدون المفتاح السري API_KEY (يرجع 404 عادي كأنه غير موجود)،
+// ولا يرسل أي ترويسة CORS، فلا يمكن استدعاؤه من المتصفح ولا من موقع آخر.
+function safeEqual(a, b) {
+  a = String(a); b = String(b);
+  let diff = a.length ^ b.length;
+  for (let i = 0; i < Math.max(a.length, b.length); i++) diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
+  return diff === 0;
+}
+function isAuthorized(request, env) {
+  const secret = String(env.API_KEY || "");
+  if (!secret) return false; // لو المفتاح غير مضبوط يُقفل العامل بدل ما يفتح للجميع
+  const bearer = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
+  return safeEqual(request.headers.get("X-API-Key") || bearer || "", secret);
+}
+function notFound() {
+  return new Response("Not found", { status: 404, headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
+}
+
 export default {
   async fetch(request, env) {
+    if (!isAuthorized(request, env)) return notFound();
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders() });
     if (request.method !== "GET") return json({ success: false, error: "استخدم GET فقط" }, 405);
     if (env?.API_KEY && request.headers.get("X-API-Key") !== env.API_KEY) return json({ success: false, error: "Unauthorized" }, 401);

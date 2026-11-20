@@ -1,6 +1,5 @@
-const ALLOWED_ORIGINS = new Set([
-  "https://bardy.pages.dev",
-]);
+// لا يُسمح بأي Origin: leeg يُستدعى من الخادم (Pages Function) فقط، وليس من المتصفح.
+const ALLOWED_ORIGINS = new Set([]);
 
 const RESULT_LIMIT = 10;
 const NEWS_RESULT_LIMIT = 50;
@@ -274,11 +273,15 @@ async function callProvider(request, env, route, query, page, filters = {}) {
         category: cleanText(item?.["النوع"] || item?.type),
         calendar: cleanText(item?.["التقويم"] || item?.calendar),
         status,
+        days_until: Number.isFinite(item?.days_until) ? item.days_until : null,
+        days_since: Number.isFinite(item?.days_since) ? item.days_since : null,
+        next_date: cleanText(item?.next_date),
+        approx: Boolean(item?.approx),
         url: "",
         source: "عامل المناسبات المصري",
       });
       const items = [...upcoming.map((item) => mapEvent(item, "upcoming")), ...past.map((item) => mapEvent(item, "past"))];
-      return { success: true, type: "events", query: "", page: 1, page_size: items.length, count: items.length, has_more: false, items, upcoming: upcoming.map((item) => mapEvent(item, "upcoming")), past: past.map((item) => mapEvent(item, "past")), counts: payload?.counts || { upcoming: upcoming.length, past: past.length, total: items.length }, time_zone: payload?.time_zone || "Africa/Cairo", now: payload?.now || null };
+      return { success: true, type: "events", query: "", page: 1, page_size: items.length, count: items.length, has_more: false, items, upcoming: upcoming.map((item) => mapEvent(item, "upcoming")), past: past.map((item) => mapEvent(item, "past")), counts: payload?.counts || { upcoming: upcoming.length, past: past.length, total: items.length }, time_zone: payload?.time_zone || "Africa/Cairo", now: payload?.now || null, today: cleanText(payload?.today) };
     }
     const rawItems = provider.type === "images" && Array.isArray(payload?.groups) ? payload.groups.flatMap((group) => (group.items || []).map((item) => ({ ...item, source: group.source_name || group.source || item.source }))) : extractItems(payload);
     const normalizedItems = rawItems.map((item) => provider.type === "info" ? unifiedInfoItem(item) : provider.type === "images" ? imageItem(item) : genericItem(item, provider.type));
@@ -333,16 +336,36 @@ function routeName(pathname) {
   return value || "health";
 }
 
+
+// ───────── حماية العامل: خاص بالموقع فقط ─────────
+// العامل لا يرد على أي طلب بدون المفتاح السري API_KEY (يرجع 404 عادي كأنه غير موجود)،
+// ولا يرسل أي ترويسة CORS، فلا يمكن استدعاؤه من المتصفح ولا من موقع آخر.
+function safeEqual(a, b) {
+  a = String(a); b = String(b);
+  let diff = a.length ^ b.length;
+  for (let i = 0; i < Math.max(a.length, b.length); i++) diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
+  return diff === 0;
+}
+function isAuthorized(request, env) {
+  const secret = String(env.GATEWAY_KEY || "");
+  if (!secret) return false; // لو المفتاح غير مضبوط يُقفل العامل بدل ما يفتح للجميع
+  const bearer = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
+  // وسيط الموقع (Pages) يرسل المفتاح في X-Bardy-Key؛ ونقبل X-API-Key وBearer للاستدعاءات الأخرى
+  return safeEqual(request.headers.get("X-Bardy-Key") || request.headers.get("X-API-Key") || bearer || "", secret);
+}
+function notFound() {
+  return new Response("Not found", { status: 404, headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
+}
+
 export default {
   async fetch(request, env, ctx) {
+    if (!isAuthorized(request, env)) return notFound();
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: responseHeaders(request) });
     if (request.method !== "GET") return json(request, { success: false, error: "Method not allowed" }, 405);
     const url = new URL(request.url);
     const route = routeName(url.pathname);
-    // Optional: if the secret GATEWAY_KEY is set, callers (the Pages function) must send it as X-Bardy-Key.
-    if (route !== "health" && env.GATEWAY_KEY && request.headers.get("X-Bardy-Key") !== env.GATEWAY_KEY) return json(request, { success: false, error: "Unauthorized" }, 401);
     if (route === "health") return json(request, { success: true, worker: "bardy-search-api", routes: Object.keys(PROVIDERS).map((item) => `/${item}`), cache: { enabled: true, ttl_seconds: CACHE_TTL_SECONDS, s_maxage_seconds: CACHE_S_MAXAGE_SECONDS }, output: "items" });
-    if (!PROVIDERS[route]) return json(request, { success: false, error: "Unknown route", available_routes: Object.keys(PROVIDERS).map((item) => `/${item}`) }, 404);
+    if (!PROVIDERS[route]) return notFound();
     const query = cleanText(url.searchParams.get("q"));
     const pageValue = Number(url.searchParams.get("page") || 1);
     const page = Number.isFinite(pageValue) ? Math.max(1, Math.floor(pageValue)) : 1;

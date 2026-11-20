@@ -1,10 +1,26 @@
-# Bardy Workers
+# عمّال بردي ⚙️
 
-Worker scripts extracted from the Bardy project.
+هؤلاء هم «العمّال» الذين يعملون خلف الكواليس في **بردي — محرك البحث المصري**. الموقع (الواجهة) لا يبحث بنفسه؛ يسلّم السؤال لعامل مختص، والعامل يرجع بالنتيجة.
 
-## Events worker
+## مين بيعمل إيه؟
 
-`events/events.js` serves the Egyptian occasions database at `/events` and `/health`.
-The `leeg` aggregator reads the deployed worker URL only from the `EVENTS_API_URL`
-secret (the aggregator routes a root URL to `/events`). If the events worker is
-protected, also set `EVENTS_API_KEY`. Do not commit either value to the repository.
+| العامل | شغلته |
+|---|---|
+| **leeg** | المنسّق: يستلم طلب الموقع ويوزّعه على العامل المناسب، ويحفظ النتائج دقائق لتسريع الرد |
+| **sesh-search** و**noisy** | البحث في الويب وإجابات بردي الذكية |
+| **images** | البحث عن الصور |
+| **vdoiu** | البحث عن الفيديوهات |
+| **news** | تجميع الأخبار المصرية وتحديثها تلقائيًا |
+| **weki** | المعلومات والمعارف من ويكيبيديا |
+| **events** | المناسبات والأحداث المصرية (ميلادي وهجري وقبطي) مع حساب الأيام المتبقية |
+
+## طريقة الشغل
+
+```
+المتصفح ← موقع بردي ← leeg ← العامل المختص
+```
+
+## الأمان
+- كل عامل **مقفول**: لا يرد إلا على موقع بردي نفسه، وأي شخص آخر يرى صفحة «غير موجود».
+- لا توجد في المستودع أي مفاتيح أو أسرار؛ كلها محفوظة داخل Cloudflare.
+- ملفات `wrangler.toml` موجودة للتوضيح فقط، والتعديل والنشر من لوحة Cloudflare.

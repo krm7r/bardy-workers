@@ -1,0 +1,13 @@
+# للعرض والتوثيق فقط — النشر والتعديل يتمّان من لوحة Cloudflare.
+# لا توجد هنا أي أسرار؛ المفاتيح محفوظة كـ Secrets داخل Cloudflare.
+name = "bardy-events"
+main = "events.js"
+compatibility_date = "2026-01-01"
+
+[[d1_databases]]
+binding = "DB"            # قاعدة بيانات المناسبات (جدول occasions)
+database_name = "occasions"
+database_id = "<من لوحة Cloudflare>"
+
+# Secrets المطلوبة (تُضاف من Settings ← Variables and Secrets):
+#   - API_KEY

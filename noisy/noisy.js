@@ -2,7 +2,6 @@
 const MAX_TOOL_ROUNDS = 2; // أقصى عدد جولات استدعاء أدوات قبل إجبار الموديل على الإجابة
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, X-API-Key"
 };
@@ -414,7 +413,7 @@ const TOOLS = {
       url.searchParams.set("page_size", "5");
       let response;
       try {
-        response = await fetch(url.toString(), { headers: { "User-Agent": "noisy-companion", "Accept": "application/json" }, signal: AbortSignal.timeout(12000) });
+        response = await fetch(url.toString(), { headers: { "User-Agent": "noisy-companion", "Accept": "application/json", ...(env.NEWS_API_KEY ? { "X-API-Key": env.NEWS_API_KEY } : {}) }, signal: AbortSignal.timeout(12000) });
       } catch (error) { throw new Error("NEWS_FETCH_FAILED:" + String(error?.name || "Error")); }
       if (!response.ok) throw new Error("NEWS_HTTP_" + response.status);
       let data;
@@ -591,8 +590,29 @@ async function answerWithAI(question, env) {
 
 /* ================= الـ Worker ================= */
 
+
+// ───────── حماية العامل: خاص بالموقع فقط ─────────
+// العامل لا يرد على أي طلب بدون المفتاح السري API_KEY (يرجع 404 عادي كأنه غير موجود)،
+// ولا يرسل أي ترويسة CORS، فلا يمكن استدعاؤه من المتصفح ولا من موقع آخر.
+function safeEqual(a, b) {
+  a = String(a); b = String(b);
+  let diff = a.length ^ b.length;
+  for (let i = 0; i < Math.max(a.length, b.length); i++) diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
+  return diff === 0;
+}
+function isAuthorized(request, env) {
+  const secret = String(env.API_KEY || "");
+  if (!secret) return false; // لو المفتاح غير مضبوط يُقفل العامل بدل ما يفتح للجميع
+  const bearer = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
+  return safeEqual(request.headers.get("X-API-Key") || bearer || "", secret);
+}
+function notFound() {
+  return new Response("Not found", { status: 404, headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
+}
+
 export default {
   async fetch(request, env) {
+    if (!isAuthorized(request, env)) return notFound();
     if (request.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
     const url = new URL(request.url);

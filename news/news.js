@@ -17,8 +17,29 @@ const CACHE_VERSION = "sheet-v2";
 const CACHE_PARAMS = new Set(["q", "search", "category", "sort", "page", "page_size"]);
 const SUMMARY_CHARS = 280;
 
+
+// ───────── حماية العامل: خاص بالموقع فقط ─────────
+// العامل لا يرد على أي طلب بدون المفتاح السري API_KEY (يرجع 404 عادي كأنه غير موجود)،
+// ولا يرسل أي ترويسة CORS، فلا يمكن استدعاؤه من المتصفح ولا من موقع آخر.
+function safeEqual(a, b) {
+  a = String(a); b = String(b);
+  let diff = a.length ^ b.length;
+  for (let i = 0; i < Math.max(a.length, b.length); i++) diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
+  return diff === 0;
+}
+function isAuthorized(request, env) {
+  const secret = String(env.API_KEY || "");
+  if (!secret) return false; // لو المفتاح غير مضبوط يُقفل العامل بدل ما يفتح للجميع
+  const bearer = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
+  return safeEqual(request.headers.get("X-API-Key") || bearer || "", secret);
+}
+function notFound() {
+  return new Response("Not found", { status: 404, headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
+}
+
 export default {
   async fetch(request, env, ctx) {
+    if (!isAuthorized(request, env)) return notFound();
     const requestUrl = new URL(request.url);
     const headers = corsHeaders(env);
 
@@ -306,7 +327,6 @@ function clampInt(value, fallback, min, max) {
 
 function corsHeaders(env) {
   return {
-    "Access-Control-Allow-Origin": env.ALLOWED_ORIGIN || "*",
     "Access-Control-Allow-Methods": "GET, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, X-API-Key",
     "Content-Type": "application/json; charset=utf-8",

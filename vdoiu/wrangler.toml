@@ -1,0 +1,12 @@
+# للعرض والتوثيق فقط — النشر والتعديل يتمّان من لوحة Cloudflare.
+# لا توجد هنا أي أسرار؛ المفاتيح محفوظة كـ Secrets داخل Cloudflare.
+name = "bardy-vdoiu"
+main = "vdoiu.js"
+compatibility_date = "2026-01-01"
+
+[vars]
+YOUTUBE_SAFE_SEARCH = "moderate"
+
+# Secrets المطلوبة (تُضاف من Settings ← Variables and Secrets):
+#   - API_KEY
+#   - YOUTUBE_API_KEY

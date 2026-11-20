@@ -1,0 +1,20 @@
+# للعرض والتوثيق فقط — النشر والتعديل يتمّان من لوحة Cloudflare.
+# لا توجد هنا أي أسرار؛ المفاتيح محفوظة كـ Secrets داخل Cloudflare.
+name = "bardy-sesh-search"
+main = "sesh-search.js"
+compatibility_date = "2026-01-01"
+
+[[d1_databases]]
+binding = "DB"            # فهرس محلي
+database_name = "bardy-local"
+database_id = "<من لوحة Cloudflare>"
+
+[[d1_databases]]
+binding = "WEB_DB"        # كاش نتائج الويب وسجل الطلبات
+database_name = "bardy-web"
+database_id = "<من لوحة Cloudflare>"
+
+# Secrets المطلوبة (تُضاف من Settings ← Variables and Secrets):
+#   - API_KEY
+#   - FIRECRAWL_API_KEY_1 … FIRECRAWL_API_KEY_5
+#   - IP_SALT
