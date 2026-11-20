@@ -1,6 +1,6 @@
 # للعرض والتوثيق فقط — النشر والتعديل يتمّان من لوحة Cloudflare.
 # لا توجد هنا أي أسرار؛ المفاتيح محفوظة كـ Secrets داخل Cloudflare.
-name = "bardy-vdoiu"
+name = "vdoiu"
 main = "vdoiu.js"
 compatibility_date = "2026-01-01"
 

@@ -1,18 +1,18 @@
 # للعرض والتوثيق فقط — النشر والتعديل يتمّان من لوحة Cloudflare.
 # لا توجد هنا أي أسرار؛ المفاتيح محفوظة كـ Secrets داخل Cloudflare.
-name = "bardy-sesh-search"
+name = "sesh-search"
 main = "sesh-search.js"
 compatibility_date = "2026-01-01"
 
 [[d1_databases]]
 binding = "DB"            # فهرس محلي
-database_name = "bardy-local"
-database_id = "<من لوحة Cloudflare>"
+database_name = "sesh"
+database_id = "937c44cf-9aaa-48cd-850a-4558f247ceb0"
 
 [[d1_databases]]
 binding = "WEB_DB"        # كاش نتائج الويب وسجل الطلبات
-database_name = "bardy-web"
-database_id = "<من لوحة Cloudflare>"
+database_name = "sesh-web-results"
+database_id = "0dbecaed-8879-4ec0-8b14-48ee24a77bbd"
 
 # Secrets المطلوبة (تُضاف من Settings ← Variables and Secrets):
 #   - API_KEY
